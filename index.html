@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MIDNIGHT SIGNAL: PROTOCOL 10</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
+
+        :root {
+            --bg: #0a0a0a;
+            --term: #33ff00; 
+            --dim: #1a4d0d;
+            --alert: #ff3300;
+            --bot: #00ffff; /* Cyan for Androids */
+        }
+
+        body {
+            background-color: var(--bg);
+            color: var(--term);
+            font-family: 'VT323', monospace;
+            font-size: 1.4rem;
+            text-align: center;
+            text-transform: uppercase;
+            padding: 20px;
+            overflow-x: hidden;
+        }
+
+        /* SCANLINE OVERLAY */
+        body::before {
+            content: " "; display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
+        }
+
+        h1 { font-size: 3rem; margin: 0; letter-spacing: 5px; text-shadow: 0 0 10px var(--term); }
+        .screen { display: none; max-width: 600px; margin: 0 auto; }
+        .active { display: block; animation: fadeInfo 0.5s ease; }
+
+        input, button {
+            background: #000; border: 2px solid var(--term);
+            color: var(--term); font-family: 'VT323', monospace;
+            font-size: 1.5rem; width: 100%; padding: 10px; margin: 10px 0;
+        }
+        
+        button { cursor: pointer; transition: 0.2s; font-weight: bold; }
+        button:hover { background: var(--term); color: #000; }
+        
+        .btn-bot { border-color: var(--bot); color: var(--bot); }
+        .btn-bot:hover { background: var(--bot); color: #000; }
+
+        .player-list { 
+            border: 1px dashed var(--dim); padding: 15px; text-align: left; 
+            min-height: 150px; margin-bottom: 20px;
+        }
+        .p-item { padding: 5px; border-bottom: 1px solid #111; display: flex; justify-content: space-between; }
+        .is-bot { color: var(--bot); }
+        
+        .role-tag { font-size: 0.9em; background: #111; padding: 2px 8px; border: 1px solid #333; }
+
+        @keyframes fadeInfo { from { opacity: 0; } to { opacity: 1; } }
+    </style>
+</head>
+<body>
+
+    <div id="screen-login" class="screen active">
+        <h1>MIDNIGHT<br>SIGNAL</h1>
+        <p>PROTOCOL V2.0 // MAX 10 AGENTS</p>
+        <br>
+        <input type="text" id="username" placeholder="ENTER CALLSIGN" maxlength="12">
+        <input type="text" id="room-code" placeholder="FREQUENCY (ROOM CODE)" maxlength="5">
+        <button onclick="joinGame()">CONNECT TO FREQUENCY</button>
+    </div>
+
+    <div id="screen-lobby" class="screen">
+        <h2 style="border-bottom: 2px solid var(--term);">LOBBY: <span id="lobby-code">---</span></h2>
+        
+        <div class="player-list" id="p-list">
+            </div>
+
+        <div id="host-controls" style="display:none;">
+            <button class="btn-bot" onclick="addBot()">+ DEPLOY SYNTHETIC (AI)</button>
+            <button onclick="startGame()">INITIATE MISSION</button>
+        </div>
+        
+        <p id="wait-msg" style="color: #666;">WAITING FOR COMMANDER TO START...</p>
+    </div>
+
+    <div id="screen-game" class="screen">
+        <h2>MISSION ACTIVE</h2>
+        <div id="my-role-card" style="border: 2px solid var(--term); padding: 20px; margin: 20px 0;">
+            <h1 id="role-title">---</h1>
+            <p id="role-desc">---</p>
+        </div>
+        <div id="story-log" style="text-align: left; color: #aaa; font-size: 1.2rem;"></div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+        import { getDatabase, ref, set, get, onValue, update, remove, onDisconnect, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+        // CONFIG (Same as before)
+        const firebaseConfig = {
+            apiKey: "AIzaSyDu4i16gFrPaazfSXhjksjCdsr9QlxBMfug",
+            authDomain: "apex-447e2.firebaseapp.com",
+            databaseURL: "https://apex-447e2-default-rtdb.firebaseio.com",
+            projectId: "apex-447e2",
+            storageBucket: "apex-447e2.firebasestorage.app",
+            messagingSenderId: "838605000780",
+            appId: "1:838605000780:web:82806b59ec17543caae4e9"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+
+        // STATE
+        let myId = Math.random().toString(36).substr(2, 9);
+        let myRoom = "";
+        let isHost = false;
+
+        // EXPANDED ROLES (Up to 10)
+        const ROLE_DECK = [
+            { id: "DRIVER", desc: "CONTROLS THE VEHICLE. HAS THE FINAL SAY." },
+            { id: "OPERATOR", desc: "SEES THE MAP AND TRAPS." },
+            { id: "MEDIUM", desc: "SEES GHOSTS AND HIDDEN TEXT." },
+            { id: "MECHANIC", desc: "MONITORS ENGINE AND HULL." },
+            { id: "MEDIC", desc: "MONITORS CREW SANITY." },
+            { id: "GUNNER", desc: "DEFENDS AGAINST PHYSICAL THREATS." },
+            { id: "ARCHIVIST", desc: "RECORDS HISTORY. SOLVES LORE PUZZLES." },
+            { id: "SYNTHETIC", desc: "AI ASSISTANT. AUTO-SUCCEEDS TASKS." }, // 8
+            { id: "PASSENGER", desc: "OBSERVER. CAN VOTE." }, // 9
+            { id: "STOWAWAY", desc: "UNKNOWN AGENDA." } // 10
+        ];
+
+        // 1. JOIN LOGIC
+        window.joinGame = function() {
+            const name = document.getElementById('username').value.toUpperCase() || "AGENT";
+            const room = document.getElementById('room-code').value.toUpperCase() || "A1";
+            myRoom = room;
+
+            const roomRef = ref(db, `v2_rooms/${myRoom}`);
+            
+            get(roomRef).then((snap) => {
+                if(!snap.exists()) isHost = true;
+
+                // Add Player
+                set(ref(db, `v2_rooms/${myRoom}/players/${myId}`), {
+                    name: name,
+                    isHost: isHost,
+                    isBot: false,
+                    role: "PENDING"
+                });
+
+                // Disconnect cleanup
+                onDisconnect(ref(db, `v2_rooms/${myRoom}/players/${myId}`)).remove();
+
+                // UI
+                document.getElementById('screen-login').classList.remove('active');
+                document.getElementById('screen-lobby').classList.add('active');
+                document.getElementById('lobby-code').innerText = myRoom;
+
+                if(isHost) {
+                    document.getElementById('host-controls').style.display = 'block';
+                    document.getElementById('wait-msg').style.display = 'none';
+                }
+
+                listenLobby();
+            });
+        }
+
+        // 2. LOBBY LISTENER
+        function listenLobby() {
+            // Watch Players
+            onValue(ref(db, `v2_rooms/${myRoom}/players`), (snap) => {
+                const list = document.getElementById('p-list');
+                list.innerHTML = "";
+                const players = snap.val() || {};
+                const playerIds = Object.keys(players);
+
+                // Render List
+                playerIds.forEach(id => {
+                    const p = players[id];
+                    list.innerHTML += `
+                        <div class="p-item ${p.isBot ? 'is-bot' : ''}">
+                            <span>${p.isHost ? '★ ' : ''}${p.name}</span>
+                            <span class="role-tag">${p.role || 'READY'}</span>
+                        </div>
+                    `;
+                    
+                    // Update my own UI if game started and roles assigned
+                    if(id === myId && p.role !== "PENDING") {
+                        showGameScreen(p.role);
+                    }
+                });
+            });
+        }
+
+        // 3. HOST: ADD BOT (AI)
+        window.addBot = function() {
+            const botId = "BOT_" + Math.random().toString(36).substr(2, 5);
+            set(ref(db, `v2_rooms/${myRoom}/players/${botId}`), {
+                name: "SYNTHETIC-" + Math.floor(Math.random()*900+100),
+                isHost: false,
+                isBot: true,
+                role: "PENDING"
+            });
+        }
+
+        // 4. HOST: START GAME & ASSIGN ROLES
+        window.startGame = function() {
+            // Get all players
+            get(ref(db, `v2_rooms/${myRoom}/players`)).then((snap) => {
+                const players = snap.val();
+                const ids = Object.keys(players);
+                
+                // Shuffle Roles
+                let roles = [...ROLE_DECK]; // Copy deck
+                
+                ids.forEach((id, index) => {
+                    // Assign Role (Cycle through deck if more players than roles)
+                    const roleData = roles[index % roles.length];
+                    
+                    update(ref(db, `v2_rooms/${myRoom}/players/${id}`), {
+                        role: roleData.id,
+                        desc: roleData.desc
+                    });
+                });
+            });
+        }
+
+        function showGameScreen(roleId) {
+            document.getElementById('screen-lobby').classList.remove('active');
+            document.getElementById('screen-game').classList.add('active');
+            
+            const roleInfo = ROLE_DECK.find(r => r.id === roleId);
+            document.getElementById('role-title').innerText = roleInfo.id;
+            document.getElementById('role-desc').innerText = roleInfo.desc;
+            
+            document.getElementById('story-log').innerHTML = "<p>> SYSTEM INITIALIZED...</p><p>> WAITING FOR INPUT...</p>";
+        }
+
+    </script>
+</body>
+</html>
