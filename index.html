@@ -3,103 +3,72 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MIDNIGHT SIGNAL: PROTOCOL 10</title>
+    <title>MIDNIGHT SIGNAL: LIVE</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=VT323&display=swap');
 
-        :root {
-            --bg: #0a0a0a;
-            --term: #33ff00; 
-            --dim: #1a4d0d;
-            --alert: #ff3300;
-            --bot: #00ffff; /* Cyan for Androids */
-        }
-
-        body {
-            background-color: var(--bg);
-            color: var(--term);
-            font-family: 'VT323', monospace;
-            font-size: 1.4rem;
-            text-align: center;
-            text-transform: uppercase;
-            padding: 20px;
-            overflow-x: hidden;
-        }
-
-        /* SCANLINE OVERLAY */
-        body::before {
-            content: " "; display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
-            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
-            z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none;
-        }
-
-        h1 { font-size: 3rem; margin: 0; letter-spacing: 5px; text-shadow: 0 0 10px var(--term); }
+        :root { --bg: #0a0a0a; --term: #33ff00; --dim: #1a4d0d; --alert: #ff3300; --bot: #00ffff; }
+        body { background-color: var(--bg); color: var(--term); font-family: 'VT323', monospace; font-size: 1.4rem; text-align: center; text-transform: uppercase; padding: 20px; overflow-x: hidden; }
+        
+        /* VISUAL EFFECTS */
+        body::before { content: " "; display: block; position: fixed; top: 0; left: 0; bottom: 0; right: 0; background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)); z-index: 2; background-size: 100% 2px, 3px 100%; pointer-events: none; }
         .screen { display: none; max-width: 600px; margin: 0 auto; }
         .active { display: block; animation: fadeInfo 0.5s ease; }
-
-        input, button {
-            background: #000; border: 2px solid var(--term);
-            color: var(--term); font-family: 'VT323', monospace;
-            font-size: 1.5rem; width: 100%; padding: 10px; margin: 10px 0;
-        }
         
-        button { cursor: pointer; transition: 0.2s; font-weight: bold; }
-        button:hover { background: var(--term); color: #000; }
-        
+        input, button { background: #000; border: 2px solid var(--term); color: var(--term); font-family: 'VT323', monospace; font-size: 1.5rem; width: 100%; padding: 10px; margin: 10px 0; }
+        button:hover { background: var(--term); color: #000; cursor: pointer; }
+        .btn-red { border-color: var(--alert); color: var(--alert); }
+        .btn-red:hover { background: var(--alert); color: #fff; }
         .btn-bot { border-color: var(--bot); color: var(--bot); }
-        .btn-bot:hover { background: var(--bot); color: #000; }
-
-        .player-list { 
-            border: 1px dashed var(--dim); padding: 15px; text-align: left; 
-            min-height: 150px; margin-bottom: 20px;
-        }
-        .p-item { padding: 5px; border-bottom: 1px solid #111; display: flex; justify-content: space-between; }
-        .is-bot { color: var(--bot); }
         
-        .role-tag { font-size: 0.9em; background: #111; padding: 2px 8px; border: 1px solid #333; }
-
+        .story-text { text-align: left; margin-top: 20px; border-top: 1px dashed #333; padding-top: 20px; }
+        .log-entry { margin-bottom: 10px; opacity: 0; animation: typeIn 0.5s forwards; }
+        
         @keyframes fadeInfo { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes typeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
 </head>
 <body>
 
     <div id="screen-login" class="screen active">
         <h1>MIDNIGHT<br>SIGNAL</h1>
-        <p>PROTOCOL V2.0 // MAX 10 AGENTS</p>
-        <br>
-        <input type="text" id="username" placeholder="ENTER CALLSIGN" maxlength="12">
+        <p>SECURE CHANNEL V3.1</p>
+        <input type="text" id="username" placeholder="CALLSIGN" maxlength="12">
         <input type="text" id="room-code" placeholder="FREQUENCY (ROOM CODE)" maxlength="5">
-        <button onclick="joinGame()">CONNECT TO FREQUENCY</button>
+        <button onclick="joinGame()">CONNECT</button>
     </div>
 
     <div id="screen-lobby" class="screen">
         <h2 style="border-bottom: 2px solid var(--term);">LOBBY: <span id="lobby-code">---</span></h2>
+        <div id="p-list" style="text-align:left; border:1px dashed #333; padding:10px; margin-bottom:20px;"></div>
         
-        <div class="player-list" id="p-list">
-            </div>
-
         <div id="host-controls" style="display:none;">
             <button class="btn-bot" onclick="addBot()">+ DEPLOY SYNTHETIC (AI)</button>
             <button onclick="startGame()">INITIATE MISSION</button>
         </div>
-        
-        <p id="wait-msg" style="color: #666;">WAITING FOR COMMANDER TO START...</p>
+        <p id="wait-msg">WAITING FOR COMMANDER...</p>
     </div>
 
     <div id="screen-game" class="screen">
-        <h2>MISSION ACTIVE</h2>
-        <div id="my-role-card" style="border: 2px solid var(--term); padding: 20px; margin: 20px 0;">
-            <h1 id="role-title">---</h1>
-            <p id="role-desc">---</p>
+        <div id="role-header" style="border: 2px solid var(--term); padding: 10px; margin-bottom: 20px;">
+            <h2 id="role-title" style="margin:0; color:white;">---</h2>
+            <small id="role-desc" style="color:#888;">---</small>
         </div>
-        <div id="story-log" style="text-align: left; color: #aaa; font-size: 1.2rem;"></div>
+
+        <div id="story-container" class="story-text">
+            </div>
+
+        <div id="decision-box" style="display:none; margin-top:30px; border: 2px solid var(--alert); padding: 10px;">
+            <p style="color:var(--alert); font-weight:bold;">DECISION REQUIRED:</p>
+            <button class="btn-red" onclick="makeChoice('STOP')">SLAM BRAKES</button>
+            <button onclick="makeChoice('DRIVE')">FLOOR IT</button>
+        </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-        import { getDatabase, ref, set, get, onValue, update, remove, onDisconnect, push } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+        import { getDatabase, ref, set, get, onValue, update, remove, onDisconnect } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-        // CONFIG (Same as before)
         const firebaseConfig = {
             apiKey: "AIzaSyDu4i16gFrPaazfSXhjksjCdsr9QlxBMfug",
             authDomain: "apex-447e2.firebaseapp.com",
@@ -112,133 +81,120 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getDatabase(app);
-
-        // STATE
+        
         let myId = Math.random().toString(36).substr(2, 9);
-        let myRoom = "";
+        let myRoom = "", myRole = "";
         let isHost = false;
 
-        // EXPANDED ROLES (Up to 10)
-        const ROLE_DECK = [
-            { id: "DRIVER", desc: "CONTROLS THE VEHICLE. HAS THE FINAL SAY." },
-            { id: "OPERATOR", desc: "SEES THE MAP AND TRAPS." },
-            { id: "MEDIUM", desc: "SEES GHOSTS AND HIDDEN TEXT." },
-            { id: "MECHANIC", desc: "MONITORS ENGINE AND HULL." },
-            { id: "MEDIC", desc: "MONITORS CREW SANITY." },
-            { id: "GUNNER", desc: "DEFENDS AGAINST PHYSICAL THREATS." },
-            { id: "ARCHIVIST", desc: "RECORDS HISTORY. SOLVES LORE PUZZLES." },
-            { id: "SYNTHETIC", desc: "AI ASSISTANT. AUTO-SUCCEEDS TASKS." }, // 8
-            { id: "PASSENGER", desc: "OBSERVER. CAN VOTE." }, // 9
-            { id: "STOWAWAY", desc: "UNKNOWN AGENDA." } // 10
+        const ROLES = [
+            {id:"DRIVER", desc:"CONTROLS THE VEHICLE."},
+            {id:"OPERATOR", desc:"SEES MAP HAZARDS."},
+            {id:"MEDIUM", desc:"SEES GHOSTS."},
+            {id:"MECHANIC", desc:"MONITORS ENGINE."},
+            {id:"GUNNER", desc:"DEFENSE SYSTEMS."}
         ];
 
-        // 1. JOIN LOGIC
         window.joinGame = function() {
             const name = document.getElementById('username').value.toUpperCase() || "AGENT";
-            const room = document.getElementById('room-code').value.toUpperCase() || "A1";
-            myRoom = room;
-
-            const roomRef = ref(db, `v2_rooms/${myRoom}`);
+            myRoom = document.getElementById('room-code').value.toUpperCase() || "A1";
             
-            get(roomRef).then((snap) => {
+            get(ref(db, `v3/${myRoom}`)).then(snap => {
                 if(!snap.exists()) isHost = true;
-
-                // Add Player
-                set(ref(db, `v2_rooms/${myRoom}/players/${myId}`), {
-                    name: name,
-                    isHost: isHost,
-                    isBot: false,
-                    role: "PENDING"
-                });
-
-                // Disconnect cleanup
-                onDisconnect(ref(db, `v2_rooms/${myRoom}/players/${myId}`)).remove();
-
-                // UI
+                set(ref(db, `v3/${myRoom}/players/${myId}`), { name, isHost, role: "PENDING" });
+                onDisconnect(ref(db, `v3/${myRoom}/players/${myId}`)).remove();
+                
                 document.getElementById('screen-login').classList.remove('active');
                 document.getElementById('screen-lobby').classList.add('active');
                 document.getElementById('lobby-code').innerText = myRoom;
-
-                if(isHost) {
-                    document.getElementById('host-controls').style.display = 'block';
-                    document.getElementById('wait-msg').style.display = 'none';
-                }
-
-                listenLobby();
+                if(isHost) document.getElementById('host-controls').style.display = 'block';
+                else document.getElementById('wait-msg').style.display = 'block';
+                
+                listenGame();
             });
         }
 
-        // 2. LOBBY LISTENER
-        function listenLobby() {
+        function listenGame() {
             // Watch Players
-            onValue(ref(db, `v2_rooms/${myRoom}/players`), (snap) => {
-                const list = document.getElementById('p-list');
-                list.innerHTML = "";
-                const players = snap.val() || {};
-                const playerIds = Object.keys(players);
+            onValue(ref(db, `v3/${myRoom}/players`), snap => {
+                const p = snap.val() || {};
+                document.getElementById('p-list').innerHTML = Object.values(p).map(x => `<div>${x.name} [${x.role}]</div>`).join('');
+                
+                if(p[myId] && p[myId].role !== "PENDING") {
+                    myRole = p[myId].role;
+                    document.getElementById('screen-lobby').classList.remove('active');
+                    document.getElementById('screen-game').classList.add('active');
+                    const rData = ROLES.find(r => r.id === myRole) || {id: myRole, desc: "CREW"};
+                    document.getElementById('role-title').innerText = rData.id;
+                    document.getElementById('role-desc').innerText = rData.desc;
+                }
+            });
 
-                // Render List
-                playerIds.forEach(id => {
-                    const p = players[id];
-                    list.innerHTML += `
-                        <div class="p-item ${p.isBot ? 'is-bot' : ''}">
-                            <span>${p.isHost ? '★ ' : ''}${p.name}</span>
-                            <span class="role-tag">${p.role || 'READY'}</span>
-                        </div>
-                    `;
-                    
-                    // Update my own UI if game started and roles assigned
-                    if(id === myId && p.role !== "PENDING") {
-                        showGameScreen(p.role);
-                    }
-                });
+            // Watch Story Events
+            onValue(ref(db, `v3/${myRoom}/game_event`), snap => {
+                const event = snap.val();
+                if(event) handleGameEvent(event);
             });
         }
 
-        // 3. HOST: ADD BOT (AI)
         window.addBot = function() {
-            const botId = "BOT_" + Math.random().toString(36).substr(2, 5);
-            set(ref(db, `v2_rooms/${myRoom}/players/${botId}`), {
-                name: "SYNTHETIC-" + Math.floor(Math.random()*900+100),
-                isHost: false,
-                isBot: true,
-                role: "PENDING"
-            });
+            const botId = "BOT_" + Math.random().toString(36).substr(2,4);
+            set(ref(db, `v3/${myRoom}/players/${botId}`), { name: "SYNTHETIC-"+botId, role: "PENDING" });
         }
 
-        // 4. HOST: START GAME & ASSIGN ROLES
         window.startGame = function() {
-            // Get all players
-            get(ref(db, `v2_rooms/${myRoom}/players`)).then((snap) => {
-                const players = snap.val();
-                const ids = Object.keys(players);
-                
-                // Shuffle Roles
-                let roles = [...ROLE_DECK]; // Copy deck
-                
-                ids.forEach((id, index) => {
-                    // Assign Role (Cycle through deck if more players than roles)
-                    const roleData = roles[index % roles.length];
-                    
-                    update(ref(db, `v2_rooms/${myRoom}/players/${id}`), {
-                        role: roleData.id,
-                        desc: roleData.desc
-                    });
+            // Assign Roles
+            get(ref(db, `v3/${myRoom}/players`)).then(snap => {
+                const ids = Object.keys(snap.val());
+                ids.forEach((id, i) => {
+                    const r = ROLES[i % ROLES.length].id;
+                    update(ref(db, `v3/${myRoom}/players/${id}`), { role: r });
                 });
+                // Trigger Chapter 1 after 3 seconds
+                setTimeout(() => {
+                    update(ref(db, `v3/${myRoom}`), { game_event: "CHAP_1_START" });
+                }, 2000);
             });
         }
 
-        function showGameScreen(roleId) {
-            document.getElementById('screen-lobby').classList.remove('active');
-            document.getElementById('screen-game').classList.add('active');
+        function handleGameEvent(event) {
+            const log = document.getElementById('story-container');
             
-            const roleInfo = ROLE_DECK.find(r => r.id === roleId);
-            document.getElementById('role-title').innerText = roleInfo.id;
-            document.getElementById('role-desc').innerText = roleInfo.desc;
+            if(event === "CHAP_1_START") {
+                addLog("SYSTEM ONLINE. ENGINE STARTED.");
+                setTimeout(() => addLog("ENTERING BLACKWOOD TUNNEL..."), 2000);
+                setTimeout(() => {
+                    addLog("WARNING: OBSTACLE DETECTED AHEAD.");
+                    if(myRole === "DRIVER") {
+                        document.getElementById('decision-box').style.display = 'block';
+                    } else {
+                        addLog("WAITING FOR DRIVER DECISION...");
+                    }
+                }, 4000);
+            }
             
-            document.getElementById('story-log').innerHTML = "<p>> SYSTEM INITIALIZED...</p><p>> WAITING FOR INPUT...</p>";
+            if(event === "RESULT_STOP") {
+                document.getElementById('decision-box').style.display = 'none';
+                addLog(">>> DRIVER SLAMMED THE BRAKES.");
+                addLog("THE CREATURE SCREAMS. YOU SURVIVED.");
+            }
+            
+            if(event === "RESULT_DRIVE") {
+                document.getElementById('decision-box').style.display = 'none';
+                addLog(">>> DRIVER FLOORED IT.");
+                addLog("CRITICAL DAMAGE TO HULL. BUT WE ARE ALIVE.");
+            }
         }
 
+        function addLog(text) {
+            const div = document.createElement('div');
+            div.className = 'log-entry';
+            div.innerText = "> " + text;
+            document.getElementById('story-container').appendChild(div);
+        }
+
+        window.makeChoice = function(choice) {
+            update(ref(db, `v3/${myRoom}`), { game_event: choice === 'STOP' ? 'RESULT_STOP' : 'RESULT_DRIVE' });
+        }
     </script>
 </body>
 </html>
